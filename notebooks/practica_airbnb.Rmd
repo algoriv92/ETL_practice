@@ -1,0 +1,259 @@
+---
+title: '**ETL en Airbnb**'
+author: "ALEJANDRO JOSÉ GÓMEZ RIVAS"
+output:
+  html_document:
+    toc: yes
+    toc_depth: '2'
+  pdf_document:
+    toc: yes
+    toc_depth: '2'
+---
+```{css, echo = FALSE}
+.{
+  border: 1px solid rgb(0, 102, 102);
+  padding: 10px 10px;
+  background-color: #FFFCCC;
+    border-radius: 5px;
+}
+```
+
+                       
+```{r, results='hide', message=FALSE, echo=FALSE}
+# Cargamos librerías:
+library(tidyverse)
+library(data.table)
+
+# Creamos conexión con nuestra BDD
+conn <- DBI::dbConnect(RSQLite::SQLite(),
+                       "airbnb.sqlite")
+DBI::dbListTables(conn)  
+```
+
+# **Bloque 1: Extracción**
+
+### *Ejercicio 1: Listings*
+
+_Extraemos de la base de datos airbnb.sqlite las tablas de 'Listings`de enero de 2011 a junio de 2021._
+```{r, echo = TRUE,  message=FALSE}
+df_listings <- tbl(conn, sql("
+                           SELECT listings.id,
+                           listings.price,
+                           listings.number_of_reviews,
+                           listings.review_scores_rating,
+                           listings.room_type,
+                           hoods.neighbourhood_group
+                           FROM listings
+                           INNER JOIN hoods
+                           ON listings.neighbourhood_cleansed = 
+                           hoods.neighbourhood
+                           " 
+                           )) %>% collect()
+glimpse(df_listings)
+```
+
+### *Ejercicio 2: Reviews*
+
+_Hacemos lo mismo aquí pero con las tablas de 'Reviews'._ 
+```{r, echo = TRUE,  message=FALSE}
+df_reviews <- tbl(conn, sql("
+                            SELECT COUNT(DISTINCT(reviews.id)) 
+                            AS reviews_number,
+                            strftime('%Y-%m', date) AS mes,
+                            hoods.neighbourhood_group AS distrito
+                            FROM reviews
+                            INNER JOIN listings
+                            ON listings.id = 
+                            reviews.listing_id
+                            INNER JOIN hoods
+                            ON listings.neighbourhood_cleansed = 
+                            hoods.neighbourhood
+                            WHERE date > '2010-12-31'
+                            GROUP BY mes, hoods.neighbourhood_group
+                            "
+                            )) %>% collect()
+glimpse(df_reviews)
+```
+
+# **Bloque 2: Transformación**
+
+### *Ejercicio 3: Transformación Listings:*
+
+```{r, echo = TRUE,  message=FALSE}
+class(df_listings$price) # Comprobamos de qué clase es
+```
+
+_La columna price es de tipo character, y echando un vistazo a sus datos, comprobamos que hay ciertos caracteres que se hace dificultoso a la hora de manipular los datos, por lo que se procede a realizar un tratamiento para transformar los datos en numéricos:_
+
+
+```{r, echo = TRUE,  message=FALSE}
+df_listings$price <- as.numeric(gsub("[\\$,]", "", df_listings$price))
+class(df_listings$price) # ahora es de clase numérica
+```
+
+### *Ejercicio 4: Transformación Listings 2*
+#### Opción A: 
+
+```{r, echo = TRUE,  message=FALSE}
+glimpse(df_listings)
+```
+
+_Con el glimpse se aprecian, en efecto, NAs tanto en la variable number_of_reviews como en la de reviews_scores_rating. Por tanto, el objetivo aquí será usar la función sample() para sustituir los NAs por datos escogidos de la tabla de manera random._
+
+```{r, echo = TRUE,  message=FALSE}
+df_listings$number_of_reviews[is.na(df_listings$number_of_reviews)] <-
+  sample(df_listings$number_of_reviews                
+         [!is.na(df_listings$number_of_reviews)],     
+         sum(is.na(df_listings$number_of_reviews)),   
+         replace=FALSE)
+
+sum(is.na(df_listings$number_of_reviews)) # se comprueba que la suma de NAs sea igual a cero  
+
+# Se repite el mismo proceso para la variable review_scores_rating
+
+df_listings$review_scores_rating[is.na(df_listings$review_scores_rating)] <-
+  sample(df_listings$review_scores_rating
+         [!is.na(df_listings$review_scores_rating)],
+         sum(is.na(df_listings$review_scores_rating)),
+         replace=FALSE)
+
+sum(is.na(df_listings$review_scores_rating)) 
+
+# Y ya como última comprobación, un glimpse del df de Listings
+glimpse(df_listings)
+```
+
+### *Ejercicio 5: Transformación Listings 3*
+
+_Ahora que price está en un formato adecuado, se procede a calcular las nuevas columnas y se aplican los cambios de nombre:_
+
+```{r, echo = TRUE,  message=FALSE}
+df_listings <- df_listings %>%
+  group_by(neighbourhood_group, room_type) %>% 
+  summarise(precio_mediano = median(price),
+            nota_media = weighted.mean(review_scores_rating,
+                                       number_of_reviews))
+
+names(df_listings) = c("distrito", 
+                       "tipo_de_alojamiento",
+                       "precio_mediano",
+                       "nota_media")
+
+
+# Comprobamos el resultado: 
+glimpse(df_listings)
+```
+
+### *Ejercicio 6: Transformación Reviews*
+
+_El último mes disponible es julio, así que daremos la predicción para agosto. Los pasos van a ser los siguientes:_
+
+_- Extraer el nº de reviews del mes de julio_
+
+_- Almacenar en la variable 'distrito' los distintos distritos_
+
+_- Almacenar en 'reviews_number' el nº de reviews en total por cada distrito_
+
+_- Otro almacén en la variable 'mes' un vector de fechas y sustituir julio por agosto_
+
+_- Crear el DF de la predicción de agosto con esas 3 variables creadas_
+
+_- Unirlo al DF original y comprobarlo_
+
+```{r, echo = TRUE,  message=FALSE}
+# Extracción nº reviews
+reviews_julio <- df_reviews %>%
+  group_by(distrito, mes) %>% 
+  filter(mes >= "2021-07")
+
+# Creación variable 'distrito'
+distrito <- reviews_julio$distrito
+
+# Creación variable 'reviews_number'
+reviews_number <- reviews_julio$reviews_number
+
+# Creación variable 'mes'
+mes <- reviews_julio$mes
+mes <- gsub("-07", "-08", mes)
+
+# Creación del DF uniendo las 3 variables anteriores
+predict_agosto <- data.frame(distrito, mes, reviews_number)
+
+# Unión DF original + creado 
+df_reviews <- rbind(predict_agosto, df_reviews)
+df_reviews <- df_reviews %>% 
+  group_by(mes)
+
+# Comprobación
+head(df_reviews)
+```
+
+### *Ejercicio 7: Transformación Reviews 2*
+
+_Los pasos para este ejercicio serán los siguientes:_
+_- Se comprueban las fechas mínimas y máximas de la columna 'mes' del dataframe 'df_reviews'_
+_- Al ver que las fechas van de enero 2011 a julio del 2021, se crea por tanto un vector de 'fechas posibles' de principio a fin de manera mensual_
+_- Se crea un vector de 'fechas posibles' de principio a fin_
+_- Se crea un vector con todos los distritos posibles del df_
+_- Se concatenan ambos vectores y se renombran_
+_- Se procede a juntar el df anterior con el df_reviews original_
+_- Se comprueban los NAs como se indica en el enunciado_
+_- Se sustituyen los NAs por 0_
+_- Se comprueba una segunda vez para verificar que está correcto_
+
+```{r, echo = TRUE,  message=FALSE}
+# Checking mínimo y máximo
+min(df_reviews$mes)
+max(df_reviews$mes) # vamos de 2011-01 a 2021-07
+
+# Creación vector de fechas
+posibles_fechas <- seq(as.Date("2011-01-01"),
+                       as.Date("2021-07-01"), 
+                       by="months")
+
+# Adaptación del formato
+posibles_fechas <- format(posibles_fechas, "%Y-%m") 
+posibles_fechas <- as.character(posibles_fechas)
+
+# Distritos posibles:
+posibles_distritos <- unique(df_reviews$distrito)
+
+# Concatenación de ambos vectores:
+posibles_total <- expand_grid(posibles_distritos, posibles_fechas)
+colnames(posibles_total) <- c("distrito", "mes")
+
+# Unión del df anterior con el df_reviews original:
+df_reviews <- df_reviews %>% 
+  bind_rows(posibles_total)
+
+# Checking NAS. 
+sum(is.na(df_reviews$reviews_number))
+
+# Sustitución NAs por 0
+df_reviews[is.na(df_reviews)] = 0
+
+# Último checking
+sum(is.na(df_reviews$reviews_number))
+```
+
+# **Bloque 3: Carga**
+
+### *Ejercicio 8: Carga* 
+
+_Se cargarán las tablas que hemos creado en la BBDD y, por último, comprobamos que se han subido bien y se cierra la conexión._
+:::
+
+```{r}
+
+query_check <- tbl(conn, sql("
+                             SELECT * 
+                             FROM df_listings"))  
+query_check %>% collect()  
+query2_check <- tbl(conn, sql("
+                             SELECT * 
+                             FROM df_reviews")) 
+query2_check %>% collect()
+DBI::dbDisconnect(conn)
+```
+
+

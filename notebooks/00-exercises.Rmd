@@ -1,0 +1,884 @@
+---
+title: "ETL Exercises Notebook"
+author: "Máster Universitario en Ciencia de Datos"
+date: "CUNEF Universidad"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+---
+<!-- Estilo y otras configuraciones -->
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{css, echo = FALSE}
+.box {
+  padding: 10px 10px;
+  background-color: #E0E0E0;
+    border-radius: 5px;
+}
+```
+
+<!-- Fin -->
+
+::: {.box}
+All these exercises were prepared by *Leonado Hansa*, teacher in the Master's Degree Data Science in CUNEF University. 
+:::
+
+# UNIT 3. General Tools
+
+### **Exercise 1**
+
+Using ```ls``` and ```cd``` in your computer explore your folders and the contents of the folder you use for the Master's degree. 
+
+###### *Remark: If you use Windows, it is recommendable downloading Git Bash for Windows.*
+
+
+**Solución**
+
+```ls``` es un comando bash para mostrar lo que hay en un directorio, mientras que 
+```cd``` es otro comando que, unido al nombre del directorio que quieras (p. ej. ```ls Desktop```), se accede a la carpeta que se desee.
+
+Primero empezaríamos con ```ls``` para mirar todas las carpetas que tenemos, y luego entraríamos a la carpeta con ```cd ...```, y así.
+
+### **Exercise 2**
+
+Create in your local Desktop a file called ```testing-bash.ter``` and write in the text "Holi!". Use ```echo``` and ```>``` for this. Then create a folder in your Documents folder named ```carpeta_prueba```. Move the previous file inside this folder and, check with ls you've done it properly. Now use ```cat``` for checking the text actually written in the file. Finally, remove the folder ```carpeta_prueba``` with ```rm```.
+
+**Solución**
+
+Poniendo ```echo``` en el Git Bash la consola me devuelve el texto que le puse:
+
+```{console}
+rstudio@c0addac18593:~$ echo Hola
+Hola
+```
+
+El signo ```>``` es un pipeline que se pasa al resultado del comando a otra función o archivo:
+
+```{console}
+rstudio@c0addac18593:~$ echo Holi! > testing-bash.ter
+rstudio@c0addac18593:~$ ls
+etl  testing-bash.ter
+```
+
+Poniendo el comando ls vemos que hemos creado un archivo con el texto ```Hola```.
+Ahora hemos creado un directorio y hemos movido el archivo dentro usando 
+```mkdir``` y ```mv```, como se verá a continuación:
+
+```{console}
+rstudio@c0addac18593:~$ mkdir carpeta_prueba
+rstudio@c0addac18593:~$ ls
+carpeta_prueba ...(demás carpetas del Desktop)...  testing-bash.ter
+rstudio@c0addac18593:~$ mv testing-bash.ter carpeta_prueba
+rstudio@c0addac18593:~$ ls
+carpeta_prueba  etl
+rstudio@c0addac18593:~$ cd carpeta_prueba
+rstudio@c0addac18593:~/carpeta_prueba$ ls
+testing-bash.ter
+```
+
+Además, podemos revisar qué hay dentro con la función ```cat```, esto nos imprimirá en el resultado de la consola:
+
+```{console}
+rstudio@c0addac18593:~/carpeta_prueba$ cat testing-bash.ter
+Hola
+```
+
+Por último, vamos a borrar la carpeta.
+Se podría usar ```rm``` pero es que solo funciona para archivos, no para carpetas, por lo que usaremos el comando ```rmdir``` (de remove directory).
+
+Otro problema que podemos ver es que la carpeta no está vacía. O bien vamos dentro de la carpeta, borramos el archivo y luego borramos la carpeta (a veces no renta), o bien usamos la propiedad ```-rf``` en la función, esto hará una recursive delete, borrando primero los archivos de dentro y luego la carpeta.
+
+```{console}
+rstudio@c0addac18593:~/carpeta_prueba$ cd ..
+rstudio@c0addac18593:~$ rm carpeta_prueba
+rm: cannot remove 'carpeta_prueba': Is a directory
+rstudio@c0addac18593:~$ rmdir carpeta_prueba
+rmdir: failed to remove 'carpeta_prueba': Directory not empty
+rstudio@c0addac18593:~$ rm -rf carpeta_prueba
+rstudio@c0addac18593:~$ ls
+etl
+```
+Dato curioso: te lo lleva en realidad a la papelera, no te lo deletea definitivamente.
+
+### **Exercise 3**
+
+Run a docker container from the image ```lhansa/cunefark:0.1.0```, as shown in the
+Canvas notes. Explore the container with ```ls``` and ```cd```. Create a Git repository in GitHub and link a folder inside this container to that repo.
+
+**Solución**
+
+
+***Docker***
+
+Para crear el contenedor del ejercicio hay que abrir la terminal y escribir:
+
+```console
+docker run -it -p 8888:8888 lhansa/cunefark:0.1.0 bash
+```
+Una vez que la imagen se ha descargado, el contenedor empezará a correr, podemos ahora usar entonces el ```ps```:
+
+```
+PS C:\Users\alexg> ps
+CONTAINER ID   IMAGE                   COMMAND   CREATED       STATUS         PORTS                                                                                  NAMES
+c0addac18593   lhansa/cunefetl:0.1.1   "bash"   2 months ago   Up 7 minutes   0.0.0.0:8787->8787/tcp, :::8787->8787/tcp, 0.0.0.0:8888->8888/tcp, :::8888->8888/tcp   amazing_taussig
+```
+We can access our container using ```docker exec``` command:
+```
+PS C:\Users\alexg> docker exec -it amazing_taussig bash
+rstudio@c0addac18593:/$
+```
+# -----------------------------------------------------------
+# ----------------------------------------------------------- 
+# UNIT 4: Extract
+
+## Plain Text
+
+### **Exercise 1**
+
+With pandas, from *hipotecas_lectura* file read only the data from the second 
+semester of 2020, and including somehow the names of the columns.
+
+**Solución**
+
+```
+# import pandas as pd
+# Mantendremos primero los nombres de las columnas con list():
+
+# hipotecas = pd.read_csv('/home/rstudio/etl/data/hipotecas/hipotecas_lectura', 
+# nrows=3) 
+# cols = list(hipotecas.columns)
+
+# Suprimiremos las primeras 7 filas y leeremos solo las 6 siguientes (correspondientes a los 6 últimos meses del 2020:
+
+# hipotecas = pd.read_csv('/home/rstudio/etl/data/hipotecas/hipotecas_lectura', 
+#skiprows=7, nrows=6, names=cols)
+
+# hipotecas.head(6)
+```
+**Otra alternativa**
+
+```
+# hipotecas = pd.read_csv('/home/rstudio/etl/data/hipotecas/hipotecas_lectura', 
+# skiprows= range(1, 7), nrows=6, header=0)
+# hipotecas
+```
+### **Exercise 2**
+
+With readr, from the ```hipotecas_lectura``` file read only the data from the first semester of 2020, and including somehow the names of the columns.
+
+**Solución 2**
+```{r}
+library(readr)
+
+# Buscar los nombres de las columnas del DF:
+
+names <- names(read_csv('~/../Desktop/CUNEF/Máster en Data Science/6. ETL/00 Exercises PDF/hipotecas_lectura.csv'))
+
+# Lectura del DF
+
+hipotecas2 <- read_csv('~/../Desktop/CUNEF/Máster en Data Science/6. ETL/00 Exercises PDF/hipotecas_lectura.csv', 
+                       skip = 13, n_max = 6, col_names = names)
+hipotecas2
+```
+
+### **Exercise 3**
+
+Try your best reading the original file downloaded from the INE's site, ```hipotecas_numero_ine.csv```. *Remark*: you may need to specify that the encoding is "ISO-8859-2".
+
+**Solución**
+```{r}
+hipotecas_ine <- read.csv2('~/../Desktop/CUNEF/Máster en Data Science/6. ETL/00 Exercises PDF/hipotecas_numero_ine.csv', 
+                    skip = 6, nrows = 18 , fileEncoding = 'ISO-8859-2')
+head(hipotecas_ine)
+```
+```
+# import pandas as pd
+# hip_ine = pd.read_csv('/home/rstudio/etl/data/hipotecas/hipotecas_numero_ine.csv'# , 
+#                      skiprows=6, nrows=18, encoding='ISO-8859-2', delimiter=';')
+# hip_ine.head()
+```
+
+## Excel
+
+### **Exercise 1**
+
+Read with Python and ```pandas``` the second sheet of the ```ejemplos_lecturas.xlsx``` file.
+
+**Solución**
+
+```
+# import pandas as pd
+# primera_hoja = pd.read_excel('ejemplos_lectura.xlsx', sheet_name='Fechas')
+# segunda_hoja = pd.read_excel('ejemplos_lectura.xlsx', sheet_name='Holi')
+```
+Recordar que hay que ir al Excel y dar a mostrar la hoja oculta.
+
+**Otra alternativa (con R)**
+
+```{r}
+library(readxl) 
+path_to_file <- 'ejemplos_lectura.xlsx' 
+df_ejemplos <- read_xlsx(path_to_file) 
+df_ejemplos
+```
+Esto no era lo que queríamos, para mirar el número de hojas usaremos esto:
+
+```{r}
+excel_sheets(path_to_file)
+```
+Resulta que la carpeta "Holi" estaba oculta. 
+
+```{r}
+df_fechas <- read_xlsx(path_to_file, sheet = "Fechas", skip = 2, col_types = c(rep("skip", 3), rep("guess", 5))) 
+df_fechas
+```
+
+## SQL
+
+### **Exercise 1**
+
+In R, download all the rows from ```IndexPrice``` in **indexKaggle.SQlite** whose
+region is United States or Europe, from 2019 until the end of the period.
+
+**Solución**
+
+```{r}
+library(dplyr)
+
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'indexKaggle.sqlite') # Conexión con la BBDD
+DBI::dbListTables(conn) # Listando las tablas 
+DBI::dbListFields(conn, 'IndexPrice') # Lectura del IndexPrice e IndexMeta
+DBI::dbListFields(conn, 'IndexMeta')
+
+# Todo lo anterior se tiene ejecutar junto, por separado da error.
+
+# Necesitamos unir ambas tablas, así que necesitamos hacer una query para saber la región del índice del stock y así extraer los valores correspondientes al año 2009
+
+query = "
+SELECT p.stock_index, date, open, high, 
+low, close, adj_close, volume
+FROM IndexPrice p INNER JOIN IndexMeta m ON(p.stock_index == m.stock_index)
+WHERE (m.region == 'United States' OR m.region == 'Europe') AND
+strftime('%Y', p.date) == '2009' 
+"
+table <- tbl(conn, sql(query))
+table %>% collect() # con esto ejecutamos la query
+
+# Para cerrar conexión con la BBDD
+
+DBI::dbDisconnect(conn)
+```
+
+
+**Exercise 2**
+
+In R and Python, from **indexKaggle.SQlite** download a table containing all the
+close prices and volume since 2007 until 2010 whose currency is dollars or euros.
+
+**Solución**
+
+Con **R**:
+```{r}
+library(dplyr)
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'indexKaggle.sqlite')
+DBI::dbListTables(conn)  
+DBI::dbListFields(conn, 'IndexPrice')
+DBI::dbListFields(conn, 'IndexMeta')
+
+# Necesitamos unir ambas tablas y necesitamos una query que nos haga saber el índice actual del stock: 
+
+query <- "
+SELECT p.stock_index, adj_close, volume
+FROM IndexPrice p INNER JOIN IndexMeta m ON(p.stock_index == m.stock_index)
+WHERE (m.currency == 'EUR' OR m.currency == 'USD') AND 
+strftime('%Y', p.date) BETWEEN '2007' AND '2009'
+"
+table <- tbl(conn, sql(query))
+table %>% collect() 
+DBI::dbDisconnect(conn)
+```
+Con **Python**:
+
+```
+# import pandas as pd
+# from sqlalchemy import create_engine
+# engine = create_engine('indexKaggle.sqlite')
+# query = '''
+# SELECT p.stock_index, adj_close, volume
+# FROM IndexPrice p INNER JOIN IndexMeta m ON(p.stock_index == m.stock_index)
+# WHERE (m.currency == 'EUR' OR m.currency == 'USD') AND 
+# strftime('%Y', p.date) BETWEEN '2007' AND '2009'
+# '''
+# table = pd.read_sql(query, engine)
+# table.head()
+```
+
+### **Exercise 3** 
+
+With R or Python, use the ```elections2016.sqlite``` database for extracting some data. We want a table that includes all the adjusted polls for Trump and Clinton in the Ohio and Pennsylvania states, along with the final results, order from the newest poll to the oldest (considering only the ```enddate``` column). The final table will have the next columns:
+* (From the ```Polls``` table) state, enddate, grade, samplesize, adjpoll_clinton, adjpoll_trump.
+* (From the ```Results``` table) electoral_votes, clinton, trump.
+
+**Solución**
+
+Con **R**:
+```{r}
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'elections2016.sqlite')
+DBI::dbListFields(conn, 'Polls')
+DBI::dbListFields(conn, 'Results')
+query <- "
+SELECT p.state, p.enddate, p.grade, p.samplesize, p.adjpoll_clinton, 
+p.adjpoll_trump, r.electoral_votes, r.clinton, r.trump
+FROM Polls p INNER JOIN Results r ON(p.state == r.state)
+WHERE p.state == 'Ohio' OR p.state == 'Pennsylvania'
+ORDER BY p.enddate DESC
+"
+table <- tbl(conn, sql(query))
+table %>% collect()
+```
+
+Con **Python**:
+
+```
+# import pandas as pd
+# from sqlalchemy import create_engine
+# engine = create_engine('elections2016.sqlite')
+# query = '''
+# SELECT p.state, p.enddate, p.grade, p.samplesize, p.adjpoll_clinton, 
+# p.adjpoll_trump, r.electoral_votes, r.clinton, r.trump
+# FROM Polls p INNER JOIN Results r ON(p.state == r.state)
+# WHERE p.state == 'Ohio' OR p.state == 'Pennsylvania'
+# ORDER BY p.enddate DESC
+# '''
+# table = pd.read_sql(query, engine)
+# table.head()
+```
+
+### **Exercise 4**
+
+In the **Pets** database, check if there is any owner with more the one pet.
+
+**Solución**
+
+Con **R**:
+
+```{r}
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'pets.sqlite')
+DBI::dbListTables(conn)
+DBI::dbListFields(conn, 'Owners')
+DBI::dbListFields(conn, 'Pets')
+query <- "
+SELECT o.OwnerID, count(p.PetID)
+FROM Owners o INNER JOIN Pets p ON(o.OwnerID == p.OwnerID)
+GROUP BY o.OwnerID
+HAVING count(p.PetID) > 1
+"
+table <- tbl(conn, sql(query))
+table %>% collect() 
+```
+
+Con **Python**:
+
+```
+# import pandas as pd
+# from sqlalchemy import create_engine
+# engine = create_engine('pets.sqlite')
+# query = '''
+# SELECT o.OwnerID, count(p.PetID)
+# FROM Owners o INNER JOIN Pets p ON(o.OwnerID == p.OwnerID)
+# GROUP BY o.OwnerID
+# HAVING count(p.PetID) > 1
+# '''
+# table = pd.read_sql(query, engine)
+# table.head()
+```
+
+### **Exercise 5**
+
+Calculate the income per day considering all procedures.
+
+**Solución**
+
+En **R**:
+
+```{r}
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'pets.sqlite')
+DBI::dbListTables(conn)
+DBI::dbListFields(conn, 'ProceduresDetails')
+DBI::dbListFields(conn, 'ProceduresHistory')
+query <- "
+SELECT h.date, AVG(d.price)
+FROM ProceduresHistory h INNER JOIN ProceduresDetails d 
+    ON(h.ProcedureType == d.ProcedureType AND 
+        h.ProcedureSubCode == d.ProcedureSubCode) 
+GROUP BY h.date
+"
+table <- tbl(conn, sql(query))
+table %>% collect() 
+```
+
+Con **Python**:
+
+```
+# import pandas as pd
+# from sqlalchemy import create_engine
+# engine = create_engine('sqlite:///../data/pets.sqlite')
+# query = '''
+# SELECT h.date, AVG(d.price)
+# FROM ProceduresHistory h INNER JOIN ProceduresDetails d 
+#     ON(h.ProcedureType == d.ProcedureType AND 
+#         h.ProcedureSubCode == d.ProcedureSubCode) 
+# GROUP BY h.date
+# '''
+# table = pd.read_sql(query, engine)
+# table.head()
+```
+
+### **Exercise 6**
+
+Using ```strftime()```, calculate the income per month considering only the 
+transactions done by owners from the largest city in the database (the largest
+city is the one with a larger number of owners)
+
+**Solución**
+
+Con **R**:
+
+```{r}
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'pets.sqlite')
+query2 <- "
+SELECT strftime('%Y-%m',  h.Date), AVG(d.price)
+FROM ProceduresHistory h INNER JOIN ProceduresDetails d 
+    ON(h.ProcedureType == d.ProcedureType AND 
+        h.ProcedureSubCode == d.ProcedureSubCode) 
+        INNER JOIN Pets p ON (h.PetID == p.PetID) 
+        INNER JOIN Owners o ON (p.OwnerID == o.OwnerID)
+WHERE o.City IN 
+                (SELECT City
+                  FROM Owners
+                  GROUP BY City
+                  ORDER BY COUNT(*) DESC
+                  LIMIT 1)
+GROUP BY strftime('%Y-%m',  h.Date)
+"
+table <- tbl(conn, sql(query2))
+table %>% collect()
+```
+Se usa la misma query para Python pero usando la sintaxis de ```sqlalchemy```
+
+## Spark
+
+Antes de empezar este ejercicio, la siguiente preparación tiene que realizarse:
+
+```
+# Creating the spark session
+# spark = SparkSession.builder.master("local[4]") \
+#                     .appName('sparklyr') \
+#                     .getOrCreate()
+# flights = spark.read.csv('flights.csv', header=True)
+# flights.createOrReplaceTempView("flights")
+```
+
+### **Exercise 1**
+
+How many origin airports are there in the ```flights``` table?
+
+**Solución**
+
+```
+# flights.select('origin').distinct().count()
+```
+
+### **Exercise 2**
+
+How many destinations airport are for each origin airport?
+
+**Solución**
+
+```
+# conteo_aux = flights.select('dest', 'origin').distinct()
+# conteo_aux.groupBy('origin').count().show()
+```
+
+### **Exercise 3**
+
+Calculate de average departure delay for each origin airport.
+**Solution 3**
+
+```
+# from pyspark.sql.types import DoubleType
+# flights = flights.withColumn('dep_delay', flights['dep_delay'].cast(DoubleType()))
+# flights.select('origin', 'dep_delay').groupBy('origin').avg('dep_delay').show()
+```
+
+### **Exercise 4**
+
+Remove the registers whose travelling distance is greater than the 95% of the 
+travelling distances.
+
+**Solución**
+
+```
+# from pyspark.sql.types import DoubleType
+# flights = flights.withColumn('distance', flights['distance'].cast(DoubleType()))
+# Computamos el cuantil 95
+# flights_ord = flights.select('distance').sort('distance') # order the distances
+# element_95 = int(flights_ord.count() * 0.95) # position 0.95
+# value_95 = flights_ord.collect()[element_95][0]
+# Filtramos todos los valores con distancia mayor al cuantil 95
+# flights_95 = flights.filter(flights['distance'] <= value_95)
+# flights_95.show(6)
+```
+
+# -----------------------------------------------------------
+# ----------------------------------------------------------- 
+# UNIT 5: Transform
+
+## Missing Values
+
+### **Exercise 1**
+
+Finish replacing the **NA** values from ```df_simulated``` data frame using the  column known distributions. For column V5 use a normal distribution with a mean  and a variance you consider appropriate.
+
+**Solución**
+
+En el R-Studio remoto, mirar el documento ```code/05b-transform-missing.R```. 
+```
+#V1
+how_many_na <- sum(is.na(df_imputed$V1))
+df_imputed$V1[is.na(df_imputed$V1)] <- runif(how_many_na)
+#V2
+how_many_na <- sum(is.na(df_imputed$V2))
+df_imputed$V2[is.na(df_imputed$V2)] <- rnorm(how_many_na, mean = 0, sd = 1)
+#V3
+how_many_na <- sum(is.na(df_imputed$V3))
+df_imputed$V3[is.na(df_imputed$V3)] <- rnorm(how_many_na, mean = 100, sd = sqrt(10))
+#v4
+how_many_na <- sum(is.na(df_imputed$V4))
+df_imputed$V4[is.na(df_imputed$V4)] <- rpois(how_many_na, lambda = 10)
+#V5
+how_many_na <- sum(is.na(df_imputed$V5))
+df_imputed$V5[is.na(df_imputed$V5)] <- seq(1, 15)
+```
+
+### **Exercise 2**
+
+Given the next vector, replace every **NA** value with the previous non **NA**  value.
+
+**Solución**
+
+```{r}
+# El vector en cuestión:
+set.seed(5678)
+vector_letters <- sample(letters, 50, TRUE)
+vector_letters[sample(seq_len(50), 25)] <- NA
+
+# Miremos la composición de vector_letters
+vector_letters
+
+# Como se puede ver, tenemos valores NA. Usaremos 'a' para sustituir el primer NA (ya que no hay ningún valor previo a dicho NA) y rellenemos el resto de NAs con el valor anterior:
+previo <- "a"
+posterior <- 1
+for (value in vector_letters) {
+  if (is.na(value)) {
+    vector_letters[posterior] <- previo
+  } else {
+    previo <- value
+  }
+  posterior <- posterior + 1
+}
+
+vector_letters
+```
+
+### **Exercise 3**
+
+Replace all the **NA** of the column V5 in ```df_simulated``` data frame using the moving average approach - with a period not longer than 1. 
+
+**Solución**
+
+En el R-Studio remoto, mirar el documento ```code/05c-transform-missing.R```.
+
+```
+library(purrr)
+df_imputed <- df_simulated
+df_imputed$V5 <- imap_dbl(df_simulated$V5, function(.x, .y){
+  # .x represents the value in the iteration
+  # .y represents the index of the interation
+  
+  if(!is.na(.x)){
+   return(.x) 
+  } else {
+  prev_value <- df_simulated$V5[.y - 1] 
+  next_value <- df_simulated$V5[.y + 1] 
+  
+  return(mean(c(prev_value, next_value)))  
+  }
+})
+```
+
+### **Exercise 4**
+
+Build a function for scaling the ```iris``` dataset with the *min_max* approach and scale all the numeric columns.
+
+**Solución**
+
+```{r}
+library(dplyr)
+
+# Definimos el mínimo y máximo de la función aproximada
+weight <- function(value, mini, maxi) {
+  return((value-mini)/(maxi-mini))
+}
+# Se hace la conversión
+iris_scaled <- iris %>% 
+  mutate(across(where(is.numeric), ~ weight(., min(.), max(.))))
+iris_scaled %>% 
+  summarise(across(where(is.numeric), list(mean = mean, sd = sd)))
+```
+
+### **Exercise 5**
+
+For the data frame ```iris``` build new functions ```setosa```, ```versicolor```  and ```virginica```. ```setosa``` will equal 1 if ```Species == setosa``` and 0 in the other case. 
+
+**Solución**
+
+Este es un ejercicio sobre **codificar variables categóricas (apartado 4 del tema 5 TRANSFORMACIÓN)**
+
+```{r}
+library(dplyr)
+iris_encoded <- iris %>% 
+  mutate(setosa = if_else(Species == 'setosa', 1, 0),
+         versicolor = if_else(Species == 'versicolor', 1, 0),
+         virginica = if_else(Species == 'virginica', 1, 0)) %>% 
+  select(Species, setosa, versicolor, virginica)
+head(iris_encoded)
+```
+
+## Dates and Time Series
+
+### **Exercise 1**
+
+Extract from the ```Pets``` database the daily number of procedures from the  ```ProceduresHistory``` table. 
+
+**Solución**
+
+```{r}
+library(dplyr)
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'pets.sqlite')
+query <- "
+SELECT Date, COUNT(*)
+FROM ProceduresHistory
+GROUP BY Date
+"
+table <- tbl(conn, sql(query)) %>% collect()
+head(table)
+```
+
+### **Exercise 2**
+
+In that table you extracted in the previous exercise, create a new column that equals 1 if the date is a Sunday; 0, elsewhere. For knowing when a date is Sunday, you can use something like ```format(a_date, format = "%u")```, which output the weekday number (7 for Sundays). **Remark**. The column must be of type ```Date```.
+
+**Solución**
+
+```{r}
+library(dplyr)
+table_sunday <- table %>% 
+  mutate(Sunday = if_else(format(as.Date(Date), format = "%u") == "7", 1, 0))
+table_sunday %>% filter(Sunday == 1) %>% head()
+```
+
+### **Exercise 3**
+
+During February 4th 2016 there was a peak, a very extreme value. Create a column with a dummy variable indicating that date.
+
+**Solución**
+```{r}
+library(dplyr)
+table %>% 
+  mutate(Anomaly = if_else(Date == '2016-02-04', 1, 0)) %>% 
+  filter(format(as.Date(Date), format = '%m') == "02") %>% 
+  head()
+```
+
+### **Exercise 5**
+
+Let’s go now with something independent from the previous data. Imagine we have a data frame like the one created from the next code. The ﬁrst column indicates the beginning and end of each week of 2021, but in a terrible format. Create a new column with only the ﬁrst date of each week, but with the format ```yyyy-mm-dd```.
+
+**Solución**
+
+```{r}
+library(dplyr)
+crear_dias <- function(ini, fin) {
+  format(seq(as.Date(ini), as.Date(fin), by = 7),
+  format = "%d/%m/%Y")
+}
+
+fechas_horribles <- paste(
+  crear_dias("2020-12-28", "2021-12-27"),
+  crear_dias("2021-01-03", "2022-01-02"),
+  sep = " - "
+)
+df <- tibble(
+  semana = fechas_horribles,
+  metrica = runif(length(fechas_horribles))
+)
+df
+
+# Solución
+
+df %>% 
+  mutate(start = as.Date(semana, format = '%d/%m/%Y')) %>% 
+  head()
+```
+
+# -----------------------------------------------------------
+# ----------------------------------------------------------- 
+# UNIT 6: Load
+
+### **Exercise 1**
+
+Repeat with R all the process shown in Python for the ```indexKaggle.sqlite``` database
+
+**Solución**
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+conn <- DBI::dbConnect(RSQLite::SQLite(), 'indexKaggle.sqlite')
+query = "
+  SELECT IndexMeta.region, IndexPrice.stock_index, 
+         IndexPrice.date, 
+         IndexPrice.adj_close, IndexPrice.volume, 
+         IndexMeta.currency
+  FROM IndexPrice INNER JOIN IndexMeta
+      ON IndexPrice.stock_index = IndexMeta.stock_index
+  WHERE IndexMeta.region in ('United States', 'Europe') and 
+      IndexPrice.date >= '2019-01-01' and
+      IndexPrice.adj_close is not null
+"
+table <- tbl(conn, sql(query)) %>% collect()
+head(table)
+# Adj_close value to numeric
+table <- table %>% 
+  mutate(adj_close = as.numeric(adj_close)) %>% 
+  mutate(date = as.Date(date))
+table$adj_close <- imap_dbl(table$adj_close, function(.x, .y){
+  # .x represents the value in the iteration
+  # .y represents the index of the interation
+  
+  if(!is.na(.x)){
+   return(.x) 
+  } else {
+  prev_value <- table$adj_close[.y - 1] 
+  next_value <- table$adj_close[.y + 1] 
+  
+  return(mean(c(prev_value, next_value)))  
+  }
+})
+# There isn't NA values
+sum(is.na(table['adj_close']))
+# Creating a table for each index
+c(unique(table$stock_index))
+  nya <- table %>% 
+    filter(stock_index == 'NYA') %>% 
+    select(date, adj_close) %>% 
+    mutate(smoothed = zoo::rollmean(adj_close, k = 15, fill=NA))
+  
+  ixic <- table %>% 
+    filter(stock_index == 'IXIC') %>% 
+    select(date, adj_close) %>% 
+    mutate(smoothed = zoo::rollmean(adj_close, k = 15, fill=NA))
+  
+  n100 <- table %>% 
+    filter(stock_index == 'N100') %>% 
+    select(date, adj_close) %>% 
+    mutate(smoothed = zoo::rollmean(adj_close, k = 15, fill=NA))
+  
+ggplot(nya, aes(x=date)) +
+  geom_line(aes(y=adj_close), color = 'blue') +
+  geom_line(aes(y=smoothed), color = 'red')
+# Insert tables
+DBI::dbCreateTable(conn, 'NYA', nya)
+DBI::dbCreateTable(conn, 'IXIC', ixic)
+DBI::dbCreateTable(conn, 'N100', n100)
+# Populate tables
+DBI::dbAppendTable(conn, 'NYA', nya)
+DBI::dbAppendTable(conn, 'IXIC', ixic)
+DBI::dbAppendTable(conn, 'N100', n100)
+# Check tables
+DBI::dbListTables(conn)
+tbl(conn, sql('SELECT * FROM NYA')) %>% collect()
+# Drop tables
+DBI::dbRemoveTable(conn, 'NYA')
+DBI::dbRemoveTable(conn, 'IXIC')
+DBI::dbRemoveTable(conn, 'N100')
+# Check tables
+DBI::dbListTables(conn)
+```
+
+# -----------------------------------------------------------
+# ----------------------------------------------------------- 
+# UNIT 7: APIs
+
+### **Exercise 1**
+
+Select 3 subgroups within the INE data base an retrieve the IPC for these subgroups, Make the request within a loop. Somehow, manage to get a table similar to the original one. It can be done in Python or R. 
+
+**Solución**
+
+```{r}
+library(httr)
+library(tidyverse)
+subgroups <- c('304099', '304101', '304103') # Transporte, Ocio, Hoteles
+data <- list()
+i = 1
+for (group in subgroups) {
+  # Generamos el URL
+  url <- paste(
+    "https://servicios.ine.es/wstempus/js/ES/DATOS_METADATAOPERACION/25?p=1&g1=762:", 
+    subgroups[i], 
+    "&g2=3:83&g3=349:16473&date=20210531:20210901&page=1", 
+    sep = "")
+  
+  # La petición a la API
+  r <- GET(url)
+  
+  # Revisamos el estado
+  if(status_code(r) == 200) {
+    # Extracción del dato
+    data[i] <- content(r)[[1]]$Data
+    
+    # Próxima petición
+    i <- i+1
+  } else {
+    stop(paste('Error during petition. Code: ', status_code(r)))
+  }
+}
+```
+
+### **Exercise 2**
+
+Think of a company you are interested on extracting the following data:
+* market capitalization
+* PE ratio
+* total revenue
+
+**Solución (con Python solo)**
+
+```
+import pandas as pd
+from yahoofinancials import YahooFinancials
+from datetime import date
+yf = YahooFinancials('TSLA')
+data_mk = yf.get_market_cap()
+data_pe = yf.get_pe_ratio()
+data_tr = yf.get_total_revenue()
+```
